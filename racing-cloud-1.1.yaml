@@ -1,0 +1,250 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestructura Racing (FIX AZs): Auto-deteccion de zonas para evitar error en Academy.'
+
+Parameters:
+  KeyName:
+    Description: Nombre de la KeyPair (vockey).
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: vockey
+  
+  DBPassword:
+    Description: Contraseña Maestra RDS.
+    Type: String
+    NoEcho: true
+    MinLength: 8
+
+  DomainName:
+    Description: Tu dominio real.
+    Type: String
+    Default: aglinformatica3.com.es
+
+Resources:
+  RacingVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.200.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{Key: Name, Value: Racing-VPC}]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref RacingVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.10.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags: [{Key: Name, Value: Racing-Public-DMZ}]
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.20.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags: [{Key: Name, Value: Racing-Private-App}]
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.21.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      Tags: [{Key: Name, Value: Racing-Private-DB-Standby}]
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties: {Domain: vpc}
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref RacingVPC}
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref RacingVPC}
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  SubnetRouteTableAssociationPublic:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PublicSubnet, RouteTableId: !Ref PublicRouteTable}
+
+  SubnetRouteTableAssociationPrivate1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PrivateSubnet1, RouteTableId: !Ref PrivateRouteTable}
+
+  SubnetRouteTableAssociationPrivate2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PrivateSubnet2, RouteTableId: !Ref PrivateRouteTable}
+
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Acceso Web y SSH Publico
+      VpcId: !Ref RacingVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  PrivateSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Acceso Interno + Zabbix
+      VpcId: !Ref RacingVPC
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          SourceSecurityGroupId: !Ref BastionSG
+        - IpProtocol: -1
+          CidrIp: 10.200.0.0/16
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets RDS
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+
+  MariaDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: racing-db
+      Engine: mariadb
+      EngineVersion: "10.11"
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      DBName: racingdb
+      MasterUsername: admin
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups: [!Ref PrivateSG]
+      PubliclyAccessible: false
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0c7217cdde317cfec
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds: [!Ref BastionSG]
+      IamInstanceProfile: LabInstanceProfile
+      Tags: [{Key: Name, Value: Racing-Bastion-Nginx}]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update
+          apt-get install -y nginx
+          cat <<EOF > /etc/nginx/sites-available/default
+          server {
+              listen 80;
+              server_name ${DomainName} www.${DomainName};
+              location / {
+                  proxy_pass http://WP_PRIVATE_IP_PLACEHOLDER;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+              }
+          }
+          EOF
+          systemctl restart nginx
+
+  WordPressServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: ami-0c7217cdde317cfec
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroupIds: [!Ref PrivateSG]
+      IamInstanceProfile: LabInstanceProfile
+      Tags: [{Key: Name, Value: Racing-WordPress}]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update
+          apt-get install -y apache2 php libapache2-mod-php php-mysql mariadb-client wget
+          cd /var/www/html
+          rm index.html
+          wget https://wordpress.org/latest.tar.gz
+          tar -xzf latest.tar.gz
+          mv wordpress/* .
+          rm -rf wordpress latest.tar.gz
+          chown -R www-data:www-data /var/www/html
+          cp wp-config-sample.php wp-config.php
+          sed -i "s/database_name_here/racingdb/" wp-config.php
+          sed -i "s/username_here/admin/" wp-config.php
+          sed -i "s/password_here/${DBPassword}/" wp-config.php
+          sed -i "s/localhost/${MariaDBInstance.Endpoint.Address}/" wp-config.php
+          echo "if (isset(\$_SERVER['HTTP_X_FORWARDED_PROTO']) && \$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { \$_SERVER['HTTPS'] = 'on'; }" >> wp-config.php
+          systemctl restart apache2
+
+  ZabbixServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: ami-0c7217cdde317cfec
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroupIds: [!Ref PrivateSG]
+      IamInstanceProfile: LabInstanceProfile
+      Tags: [{Key: Name, Value: Racing-Zabbix}]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          wget https://repo.zabbix.com/zabbix/6.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.0-4%2Bubuntu22.04_all.deb
+          dpkg -i zabbix-release_6.0-4+ubuntu22.04_all.deb
+          apt-get update
+          apt-get install -y zabbix-server-mysql zabbix-frontend-php zabbix-apache-conf zabbix-sql-scripts zabbix-agent mariadb-server
+          systemctl start mariadb
+          mysql -e "create database zabbix character set utf8mb4 collate utf8mb4_bin;"
+          mysql -e "create user zabbix@localhost identified by '${DBPassword}';"
+          mysql -e "grant all privileges on zabbix.* to zabbix@localhost;"
+          mysql -e "set global log_bin_trust_function_creators = 1;"
+          zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql --default-character-set=utf8mb4 -uzabbix -p'${DBPassword}' zabbix
+          mysql -e "set global log_bin_trust_function_creators = 0;"
+          sed -i "s/# DBPassword=/DBPassword=${DBPassword}/" /etc/zabbix/zabbix_server.conf
+          sed -i "s/; php_value[date.timezone] = Europe\/Riga/php_value[date.timezone] = Europe\/Madrid/" /etc/zabbix/apache.conf
+          systemctl restart zabbix-server zabbix-agent apache2
+          systemctl enable zabbix-server zabbix-agent apache2 mariadb
+
+Outputs:
+  BastionPublicIP:
+    Value: !GetAtt BastionHost.PublicIp
+  WordPressPrivateIP:
+    Value: !GetAtt WordPressServer.PrivateIp
+  ZabbixPrivateIP:
+    Value: !GetAtt ZabbixServer.PrivateIp
+  RDSAddress:
+    Value: !GetAtt MariaDBInstance.Endpoint.Address
