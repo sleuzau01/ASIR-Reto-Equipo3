@@ -1,0 +1,481 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Racing Santander WordPress - Arquitectura Completa AWS Academy Compatible
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: vockey
+    Description: Par de claves SSH
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Default: Racing2026
+    MinLength: 8
+    Description: Contrase?a para RDS MariaDB
+
+  WordPressMinSize:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 4
+    Description: Minimo instancias Auto Scaling
+
+  WordPressMaxSize:
+    Type: Number
+    Default: 3
+    MinValue: 2
+    MaxValue: 10
+    Description: Maximo instancias Auto Scaling
+
+Resources:
+  RacingVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.200.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref RacingVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.10.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      MapPublicIpOnLaunch: true
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.11.0/24
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+      MapPublicIpOnLaunch: true
+
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.12.0/24
+      AvailabilityZone: !Select
+        - 2
+        - !GetAZs ''
+      MapPublicIpOnLaunch: true
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.20.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.21.0/24
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RacingVPC
+      CidrBlock: 10.200.22.0/24
+      AvailabilityZone: !Select
+        - 2
+        - !GetAZs ''
+
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref RacingVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetCRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref RacingVPC
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+  PrivateSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetCRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetC
+      RouteTableId: !Ref PrivateRouteTable
+
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH desde Internet para Bastion
+      VpcId: !Ref RacingVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  LoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP desde Internet
+      VpcId: !Ref RacingVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  WordPressSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP desde ALB y SSH desde Bastion
+      VpcId: !Ref RacingVPC
+
+  WordPressIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref WordPressSG
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !Ref LoadBalancerSG
+
+  WordPressIngressSSH:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref WordPressSG
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId: !Ref BastionSG
+
+  DatabaseSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: MySQL desde WordPress
+      VpcId: !Ref RacingVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref WordPressSG
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: NFS desde WordPress
+      VpcId: !Ref RacingVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref WordPressSG
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c7217cdde317cfec
+      InstanceType: t3.micro
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnetA
+      SecurityGroupIds:
+        - !Ref BastionSG
+      IamInstanceProfile: LabInstanceProfile
+      UserData: !Base64 |
+        #!/bin/bash
+        apt-get update -y
+        apt-get install -y mysql-client nfs-common
+
+  WordPressEFS:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      PerformanceMode: generalPurpose
+
+  EFSMountTargetA:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref WordPressEFS
+      SubnetId: !Ref PrivateSubnetA
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSMountTargetB:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref WordPressEFS
+      SubnetId: !Ref PrivateSubnetB
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  EFSMountTargetC:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref WordPressEFS
+      SubnetId: !Ref PrivateSubnetC
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets privadas para RDS
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+        - !Ref PrivateSubnetC
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: racing-wordpress-db
+      Engine: mariadb
+      EngineVersion: '10.11'
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: '20'
+      MasterUsername: admin
+      MasterUserPassword: !Ref DBPassword
+      DBName: wordpress
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSG
+      MultiAZ: false
+      BackupRetentionPeriod: 7
+      PubliclyAccessible: false
+
+  RacingS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub racing-wordpress-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  RacingLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: Racing-ALB
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+        - !Ref PublicSubnetC
+      SecurityGroups:
+        - !Ref LoadBalancerSG
+
+  WordPressTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: Racing-WP-TG
+      VpcId: !Ref RacingVPC
+      Protocol: HTTP
+      Port: 80
+      TargetType: instance
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200,301,302
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref RacingLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WordPressTargetGroup
+
+  WordPressLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    DependsOn:
+      - RDSInstance
+      - EFSMountTargetA
+      - EFSMountTargetB
+    Properties:
+      LaunchTemplateName: Racing-WordPress-LT
+      LaunchTemplateData:
+        ImageId: ami-0c7217cdde317cfec
+        InstanceType: t3.micro
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref WordPressSG
+        IamInstanceProfile:
+          Name: LabInstanceProfile
+        UserData: !Base64
+          Fn::Sub: |
+            #!/bin/bash
+            set -e
+            exec > >(tee /var/log/user-data.log)
+            exec 2>&1
+
+            echo "=== RACING SANTANDER WORDPRESS ==="
+
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y
+            apt-get install -y apache2 php libapache2-mod-php php-mysql php-gd php-curl php-xml php-mbstring wget nfs-common awscli
+
+            cd /tmp
+            wget -q https://wordpress.org/latest.tar.gz
+            tar -xzf latest.tar.gz
+            rm -rf /var/www/html/*
+            cp -r wordpress/* /var/www/html/
+
+            cd /var/www/html
+            cp wp-config-sample.php wp-config.php
+            sed -i "s/database_name_here/wordpress/" wp-config.php
+            sed -i "s/username_here/admin/" wp-config.php
+            sed -i "s/password_here/${DBPassword}/" wp-config.php
+            sed -i "s/localhost/${RDSInstance.Endpoint.Address}/" wp-config.php
+
+            cat >> wp-config.php << 'EOF'
+
+            if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+                $_SERVER['HTTPS'] = 'on';
+            }
+            if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+                $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
+            }
+            EOF
+
+            mkdir -p /mnt/efs-wp-content
+            echo "${WordPressEFS}.efs.${AWS::Region}.amazonaws.com:/ /mnt/efs-wp-content nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+            mount -a -t nfs4
+
+            if [ ! -f /mnt/efs-wp-content/.initialized ]; then
+                cp -r /var/www/html/wp-content/* /mnt/efs-wp-content/
+                touch /mnt/efs-wp-content/.initialized
+            fi
+
+            rm -rf /var/www/html/wp-content
+            ln -s /mnt/efs-wp-content /var/www/html/wp-content
+
+            chown -R www-data:www-data /var/www/html
+            chown -R www-data:www-data /mnt/efs-wp-content
+            chmod -R 755 /var/www/html
+
+            a2enmod rewrite
+            systemctl restart apache2
+            systemctl enable apache2
+
+            echo "=== INSTALACION COMPLETADA ==="
+
+  WordPressAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: Racing-WP-ASG
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+        - !Ref PrivateSubnetC
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WordPressLaunchTemplate
+        Version: !GetAtt WordPressLaunchTemplate.LatestVersionNumber
+      MinSize: !Ref WordPressMinSize
+      MaxSize: !Ref WordPressMaxSize
+      DesiredCapacity: !Ref WordPressMinSize
+      TargetGroupARNs:
+        - !Ref WordPressTargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+
+Outputs:
+  WebsiteURL:
+    Description: URL WordPress
+    Value: !Sub http://${RacingLoadBalancer.DNSName}
+
+  BastionIP:
+    Description: IP Bastion
+    Value: !GetAtt BastionHost.PublicIp
+
+  RDSEndpoint:
+    Description: Endpoint RDS
+    Value: !GetAtt RDSInstance.Endpoint.Address
+
+  EFSID:
+    Description: ID EFS
+    Value: !Ref WordPressEFS
+
+  S3Bucket:
+    Description: Bucket S3
+    Value: !Ref RacingS3Bucket
