@@ -3,11 +3,10 @@
 # Ejecutar UNA VEZ como Administrador después de instalar Windows
 # ============================================================
 
-# Verificar ejecución como administrador
+# Auto-elevar a administrador si es necesario
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "❌ Este script debe ejecutarse como ADMINISTRADOR" -ForegroundColor Red
-    Write-Host "Clic derecho → Ejecutar como administrador" -ForegroundColor Yellow
-    pause
+    Write-Host "⚠️  Elevando a permisos de administrador..." -ForegroundColor Yellow
+    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
 
