@@ -1,7 +1,8 @@
-# ============================================================
-# POST-INSTALACIÓN TPV RACING SANTANDER
-# Ejecutar UNA VEZ como Administrador después de instalar Windows
-# ============================================================
+# ===============================================================
+# Script de Post-Instalación para Terminales TPV Racing Santander
+# Versión: 2.0 con parámetro bar_id
+# Fecha: 08/02/2026
+# ===============================================================
 
 # Auto-elevar a administrador si es necesario
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -10,330 +11,335 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
-Clear-Host
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  POST-INSTALACIÓN TPV RACING SANTANDER" -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "  🏟️  CONFIGURACIÓN TPV - RACING DE SANTANDER" -ForegroundColor Green
+Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 
-# ============================================================
-# VERIFICAR E INSTALAR GOOGLE CHROME
-# ============================================================
-
-Write-Host "Verificando Google Chrome..." -ForegroundColor Yellow
+# ===============================================================
+# BLOQUE 1: VERIFICACIÓN E INSTALACIÓN DE GOOGLE CHROME
+# ===============================================================
 
 $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 $chromeInstalled = Test-Path $chromePath
 
 if (-not $chromeInstalled) {
-    Write-Host "❌ Google Chrome NO está instalado" -ForegroundColor Red
-    Write-Host "Descargando e instalando Chrome..." -ForegroundColor Cyan
-    Write-Host ""
+    Write-Host "[PASO 1/5] Chrome NO detectado. Iniciando descarga..." -ForegroundColor Yellow
     
     try {
-        # Descargar instalador de Chrome
         $chromeInstallerUrl = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
         $installerPath = "$env:TEMP\chrome_installer.exe"
         
-        Write-Host "[1/3] Descargando Chrome..." -ForegroundColor Yellow
+        Write-Host "  📥 Descargando Chrome..." -NoNewline
         Invoke-WebRequest -Uri $chromeInstallerUrl -OutFile $installerPath -UseBasicParsing
-        Write-Host "✅ Descarga completada" -ForegroundColor Green
+        Write-Host " ✅ Completado" -ForegroundColor Green
         
-        # Instalar Chrome silenciosamente
-        Write-Host "[2/3] Instalando Chrome (esto puede tardar 1-2 minutos)..." -ForegroundColor Yellow
+        Write-Host "  🔧 Instalando Chrome (esto puede tardar 1-2 minutos)..." -NoNewline
         Start-Process -FilePath $installerPath -ArgumentList "/silent /install" -Wait
-        Write-Host "✅ Chrome instalado" -ForegroundColor Green
+        Write-Host " ✅ Completado" -ForegroundColor Green
         
-        # Limpiar instalador
-        Write-Host "[3/3] Limpiando archivos temporales..." -ForegroundColor Yellow
         Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-        Write-Host "✅ Limpieza completada" -ForegroundColor Green
         
         # Verificar instalación
-        Start-Sleep -Seconds 3
         if (Test-Path $chromePath) {
-            Write-Host ""
-            Write-Host "✅ Google Chrome instalado correctamente" -ForegroundColor Green
-            Write-Host ""
+            Write-Host "  ✅ Chrome instalado correctamente" -ForegroundColor Green
         } else {
-            Write-Host ""
-            Write-Host "⚠️  Chrome instalado pero no detectado en ruta estándar" -ForegroundColor Yellow
-            Write-Host "Verifica manualmente: $chromePath" -ForegroundColor Yellow
-            Write-Host ""
+            throw "Chrome no se instaló correctamente"
         }
         
     } catch {
+        Write-Host " ❌ ERROR" -ForegroundColor Red
         Write-Host ""
-        Write-Host "❌ ERROR al instalar Chrome: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "ERROR al instalar Chrome: $_" -ForegroundColor Red
         Write-Host ""
-        Write-Host "Instala Chrome manualmente desde: https://www.google.com/chrome/" -ForegroundColor Yellow
-        Write-Host "Luego vuelve a ejecutar este script" -ForegroundColor Yellow
+        Write-Host "SOLUCIÓN MANUAL:" -ForegroundColor Yellow
+        Write-Host "  1. Descarga Chrome desde: https://www.google.com/chrome/" -ForegroundColor White
+        Write-Host "  2. Instálalo manualmente" -ForegroundColor White
+        Write-Host "  3. Vuelve a ejecutar este script" -ForegroundColor White
         Write-Host ""
-        pause
-        exit
+        Read-Host "Presiona ENTER para salir"
+        exit 1
     }
-    
 } else {
-    Write-Host "✅ Google Chrome ya está instalado" -ForegroundColor Green
-    Write-Host ""
+    Write-Host "[PASO 1/5] ✅ Chrome ya está instalado" -ForegroundColor Green
 }
 
-# ============================================================
-# CONFIGURACIÓN DEL BAR
-# ============================================================
+Write-Host ""
 
-# Configuración fija del proxy
+# ===============================================================
+# BLOQUE 2: CONFIGURACIÓN DE PROXY Y CREDENCIALES
+# ===============================================================
+
+Write-Host "[PASO 2/5] Configuración de Proxy Squid" -ForegroundColor Cyan
+Write-Host ""
+
 $PROXY_IP = "192.168.20.5"
 $PROXY_PORT = "3128"
 
-# Base de datos de credenciales
+# Base de datos de credenciales por bar
 $credenciales = @{
-    1 = "Bar12026"
-    2 = "Bar22026"
-    3 = "Bar3Bar2026"
-    4 = "Bar4Bar2026"
-    5 = "Bar5Bar2026"
-    6 = "Bar6Bar2026"
-    7 = "Bar7Bar2026"
-    8 = "Bar8Bar2026"
-    9 = "Bar9Bar2026"
-    10 = "Bar10Bar2026"
-    11 = "Bar11Bar2026"
-    12 = "Bar12Bar2026"
-    13 = "Bar13Bar2026"
-    14 = "Bar14Bar2026"
-    15 = "Bar15Bar2026"
-    16 = "Bar16Bar2026"
+    1 = @{ usuario = "bar1"; password = "Bar12026" }
+    2 = @{ usuario = "bar2"; password = "Bar22026" }
+    3 = @{ usuario = "bar3"; password = "Bar3Bar2026" }
+    4 = @{ usuario = "bar4"; password = "Bar42026" }
+    5 = @{ usuario = "bar5"; password = "Bar52026" }
+    6 = @{ usuario = "bar6"; password = "Bar62026" }
+    7 = @{ usuario = "bar7"; password = "Bar72026" }
+    8 = @{ usuario = "bar8"; password = "Bar82026" }
+    9 = @{ usuario = "bar9"; password = "Bar92026" }
+    10 = @{ usuario = "bar10"; password = "Bar102026" }
+    11 = @{ usuario = "bar11"; password = "Bar112026" }
+    12 = @{ usuario = "bar12"; password = "Bar122026" }
+    13 = @{ usuario = "bar13"; password = "Bar132026" }
+    14 = @{ usuario = "bar14"; password = "Bar142026" }
+    15 = @{ usuario = "bar15"; password = "Bar152026" }
+    16 = @{ usuario = "bar16"; password = "Bar162026" }
 }
 
-# Solicitar número de bar
-Write-Host "¿Qué número de bar eres? (1-16)" -ForegroundColor Yellow
+# ===============================================================
+# BLOQUE 3: VALIDACIÓN DE ENTRADA DE USUARIO
+# ===============================================================
+
+Write-Host "Introduce el número de bar (1-16):" -ForegroundColor Yellow
+Write-Host ""
+
+$valido = $false
 do {
-    $barNumero = Read-Host "Número de bar"
+    Write-Host "  🏪 Número de bar: " -NoNewline -ForegroundColor White
+    $barNumero = Read-Host
     
     if ($barNumero -match '^\d+$' -and [int]$barNumero -ge 1 -and [int]$barNumero -le 16) {
         $valido = $true
+        Write-Host "  ✅ Bar $barNumero seleccionado" -ForegroundColor Green
     } else {
-        Write-Host "❌ Número inválido. Debe ser entre 1 y 16" -ForegroundColor Red
-        $valido = $false
+        Write-Host "  ❌ Número inválido. Debe ser entre 1 y 16" -ForegroundColor Red
+        Write-Host ""
     }
 } while (-not $valido)
 
-# Obtener credenciales
-$usuario = "bar${barNumero}"
-$password = $credenciales[[int]$barNumero]
-
-# Mostrar resumen
-Write-Host ""
-Write-Host "============================================" -ForegroundColor Green
-Write-Host "CONFIGURACIÓN DETECTADA:" -ForegroundColor Green
-Write-Host "============================================" -ForegroundColor Green
-Write-Host "Bar: $barNumero"
-Write-Host "Usuario Proxy: $usuario"
-Write-Host "Contraseña Proxy: $password"
-Write-Host "Servidor Proxy: ${PROXY_IP}:${PROXY_PORT}"
-Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
 
-$confirmar = Read-Host "¿Los datos son correctos? (S/N)"
-if ($confirmar -ne "S" -and $confirmar -ne "s") {
-    Write-Host "Instalación cancelada" -ForegroundColor Yellow
-    pause
-    exit
-}
+# Obtener credenciales del bar seleccionado
+$barConfig = $credenciales[[int]$barNumero]
+$usuario = $barConfig.usuario
+$password = $barConfig.password
 
+Write-Host "  📋 Configuración detectada:" -ForegroundColor Cyan
+Write-Host "     • Bar: $barNumero" -ForegroundColor White
+Write-Host "     • Usuario Proxy: $usuario" -ForegroundColor White
+Write-Host "     • Servidor Proxy: ${PROXY_IP}:${PROXY_PORT}" -ForegroundColor White
 Write-Host ""
-Write-Host "Iniciando instalación..." -ForegroundColor Cyan
-Write-Host ""
 
-# [1/5] Crear estructura de carpetas
-Write-Host "[1/5] Creando estructura de carpetas..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Path "C:\tpv" -Force | Out-Null
-New-Item -ItemType Directory -Path "C:\tpv\chrome-kiosk-profile" -Force | Out-Null
-Write-Host "✅ Carpetas creadas" -ForegroundColor Green
+# ===============================================================
+# BLOQUE 4: CREACIÓN DE ESTRUCTURA DE ARCHIVOS
+# ===============================================================
 
-# [2/5] Guardar configuración
-Write-Host "[2/5] Guardando configuración del bar..." -ForegroundColor Yellow
+Write-Host "[PASO 3/5] Creando estructura de archivos..." -ForegroundColor Cyan
 
-$config = @"
-# Configuración Bar $barNumero
+try {
+    # Crear directorio principal TPV
+    New-Item -ItemType Directory -Path "C:\tpv" -Force | Out-Null
+    Write-Host "  ✅ Directorio C:\tpv creado" -ForegroundColor Green
+    
+    # Crear directorio de perfil Chrome
+    New-Item -ItemType Directory -Path "C:\tpv\chrome-kiosk-profile" -Force | Out-Null
+    Write-Host "  ✅ Perfil de Chrome creado" -ForegroundColor Green
+    
+    # Guardar configuración en archivo
+    $config = @"
+# Configuración Terminal TPV - Racing Santander
+# Generado: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')
+
 BAR_NUMERO=$barNumero
 PROXY_USUARIO=$usuario
 PROXY_PASSWORD=$password
 PROXY_IP=$PROXY_IP
 PROXY_PORT=$PROXY_PORT
 "@
+    
+    $config | Out-File -FilePath "C:\tpv\config.txt" -Encoding UTF8
+    Write-Host "  ✅ Archivo de configuración guardado" -ForegroundColor Green
+    
+} catch {
+    Write-Host "  ❌ ERROR al crear archivos: $_" -ForegroundColor Red
+    Read-Host "Presiona ENTER para salir"
+    exit 1
+}
 
-$config | Out-File -FilePath "C:\tpv\config.txt" -Encoding UTF8
-Write-Host "✅ Configuración guardada" -ForegroundColor Green
+Write-Host ""
 
-# [3/5] Crear script de kiosco
-Write-Host "[3/5] Creando script modo kiosco..." -ForegroundColor Yellow
+# ===============================================================
+# BLOQUE 5: GENERACIÓN DE SCRIPT DE MODO KIOSCO
+# ===============================================================
+
+Write-Host "[PASO 4/5] Generando script de inicio automático..." -ForegroundColor Cyan
+
+# ✅✅✅ CAMBIO CRÍTICO: URL INCLUYE ?bar_id=X ✅✅✅
+$urlTPV = "http://localhost/wordpress/tpv-bar/?bar_id=$barNumero"
 
 $scriptKiosco = @"
-# ============================================================
-# MODO KIOSCO TPV - BAR $barNumero
-# Se ejecuta automáticamente al iniciar Windows
-# ============================================================
+# ===============================================================
+# Script de Inicio Automático TPV - Bar $barNumero
+# Generado: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')
+# ===============================================================
 
 # Configuración
+`$chromePath = "$chromePath"
 `$proxyIP = "$PROXY_IP"
 `$proxyPort = "$PROXY_PORT"
 `$proxyUsuario = "$usuario"
 `$proxyPassword = "$password"
-`$url = "http://localhost/wordpress/panel-tpv/"
-`$chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-`$kioskProfile = "C:\tpv\chrome-kiosk-profile"
+`$barNumero = $barNumero
+`$url = "$urlTPV"
+
+# Log de inicio
+`$logPath = "C:\tpv\tpv-kiosk.log"
+Add-Content -Path `$logPath -Value "[`$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Iniciando TPV Bar `$barNumero"
 
 # Esperar a que Windows termine de cargar
+Write-Host "Esperando inicio completo del sistema..." -ForegroundColor Yellow
 Start-Sleep -Seconds 15
 
-# Cerrar cualquier Chrome abierto
-Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Seconds 2
-
-# Configurar proxy en el sistema
-`$regProxy = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
-Set-ItemProperty -Path `$regProxy -Name ProxyEnable -Value 1 -Force
-Set-ItemProperty -Path `$regProxy -Name ProxyServer -Value "`${proxyIP}:`${proxyPort}" -Force
-
-# Crear perfil si no existe
-if (-not (Test-Path `$kioskProfile)) {
-    New-Item -ItemType Directory -Path `$kioskProfile -Force | Out-Null
+# Cerrar cualquier instancia de Chrome abierta
+try {
+    Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep -Seconds 2
+} catch {
+    # No hay Chrome abierto
 }
 
-# Construir proxy autenticado
-`$proxyAuth = "`${proxyUsuario}:`${proxyPassword}@`${proxyIP}:`${proxyPort}"
+# Configurar proxy en el registro de Windows
+Write-Host "Configurando proxy del sistema..." -ForegroundColor Cyan
+try {
+    `$regProxy = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+    Set-ItemProperty -Path `$regProxy -Name ProxyEnable -Value 1 -Force
+    Set-ItemProperty -Path `$regProxy -Name ProxyServer -Value "`${proxyIP}:`${proxyPort}" -Force
+    Write-Host "✅ Proxy configurado: `${proxyIP}:`${proxyPort}" -ForegroundColor Green
+} catch {
+    Write-Host "⚠️  Error al configurar proxy: `$_" -ForegroundColor Yellow
+}
 
-# Lanzar Chrome en modo kiosco con proxy
+# Lanzar Chrome en modo kiosco
+Write-Host "Iniciando TPV en modo kiosco..." -ForegroundColor Green
+Write-Host "  • URL: `$url" -ForegroundColor White
+Write-Host "  • Bar: `$barNumero" -ForegroundColor White
+Write-Host ""
+
 `$chromeArgs = @(
     "--kiosk",
     `$url,
-    "--user-data-dir=```"`$kioskProfile```"",
-    "--proxy-server=```"http://`${proxyAuth}```"",
+    "--proxy-server=`"http://`${proxyUsuario}:`${proxyPassword}@`${proxyIP}:`${proxyPort}`"",
+    "--user-data-dir=C:\tpv\chrome-kiosk-profile",
     "--no-first-run",
+    "--no-default-browser-check",
     "--disable-infobars",
     "--disable-session-crashed-bubble",
-    "--disable-features=TranslateUI"
+    "--disable-features=TranslateUI",
+    "--disable-popup-blocking",
+    "--start-maximized"
 )
 
-Start-Process -FilePath `$chromePath -ArgumentList `$chromeArgs
+try {
+    Start-Process -FilePath `$chromePath -ArgumentList `$chromeArgs
+    Add-Content -Path `$logPath -Value "[`$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] TPV iniciado correctamente"
+} catch {
+    Add-Content -Path `$logPath -Value "[`$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: `$_"
+    Write-Host "❌ ERROR al iniciar Chrome: `$_" -ForegroundColor Red
+}
 "@
-
-$scriptKiosco | Out-File -FilePath "C:\tpv\IniciarKiosco.ps1" -Encoding UTF8
-Write-Host "✅ Script kiosco creado" -ForegroundColor Green
-
-# [4/5] Configurar tarea programada
-Write-Host "[4/5] Configurando inicio automático..." -ForegroundColor Yellow
-
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File C:\tpv\IniciarKiosco.ps1"
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0
 
 try {
-    Register-ScheduledTask -TaskName "RacingTPV-Bar${barNumero}" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
-    Write-Host "✅ Tarea programada creada" -ForegroundColor Green
+    $scriptKiosco | Out-File -FilePath "C:\tpv\IniciarKiosco.ps1" -Encoding UTF8
+    Write-Host "  ✅ Script de kiosco generado (C:\tpv\IniciarKiosco.ps1)" -ForegroundColor Green
 } catch {
-    Write-Host "⚠️  Error al crear tarea programada: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "  ❌ ERROR al generar script: $_" -ForegroundColor Red
+    Read-Host "Presiona ENTER para salir"
+    exit 1
 }
 
-# [5/5] Configurar políticas
-Write-Host "[5/5] Configurando políticas de ejecución..." -ForegroundColor Yellow
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force -ErrorAction SilentlyContinue
-Write-Host "✅ Políticas configuradas" -ForegroundColor Green
-
-# Crear archivo resumen
-$resumen = @"
-==========================================
-INSTALACIÓN COMPLETADA
-Bar $barNumero - Racing Santander
-==========================================
-
-FECHA: $(Get-Date -Format "dd/MM/yyyy HH:mm:ss")
-PC: $env:COMPUTERNAME
-USUARIO: $env:USERNAME
-
-==========================================
-CONFIGURACIÓN
-==========================================
-
-Bar: $barNumero
-Usuario Proxy: $usuario
-Contraseña Proxy: $password
-Servidor Proxy: ${PROXY_IP}:${PROXY_PORT}
-
-==========================================
-ARCHIVOS CREADOS
-==========================================
-
-C:\tpv\config.txt
-C:\tpv\IniciarKiosco.ps1
-C:\tpv\chrome-kiosk-profile\
-
-==========================================
-TAREA PROGRAMADA
-==========================================
-
-Nombre: RacingTPV-Bar${barNumero}
-Trigger: Al iniciar sesión
-Script: C:\tpv\IniciarKiosco.ps1
-
-==========================================
-PRÓXIMOS PASOS
-==========================================
-
-1. REINICIAR el PC
-2. Al iniciar sesión, el kiosco se activará
-3. Chrome abrirá automáticamente en modo kiosco
-4. Conectará al proxy automáticamente
-
-==========================================
-"@
-
-$resumen | Out-File -FilePath "C:\tpv\instalacion-bar${barNumero}.txt" -Encoding UTF8
-$resumen | Out-File -FilePath "$env:USERPROFILE\Desktop\Instalacion-Bar${barNumero}.txt" -Encoding UTF8
-
-# Mostrar resumen final
-Write-Host ""
-Write-Host "============================================" -ForegroundColor Green
-Write-Host "✅ INSTALACIÓN COMPLETADA EXITOSAMENTE" -ForegroundColor Green
-Write-Host "============================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "BAR: $barNumero" -ForegroundColor Cyan
-Write-Host "USUARIO: $usuario" -ForegroundColor Cyan
-Write-Host "CONTRASEÑA: $password" -ForegroundColor Cyan
-Write-Host "PROXY: ${PROXY_IP}:${PROXY_PORT}" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "============================================" -ForegroundColor Yellow
-Write-Host "⚠️  REINICIA EL PC AHORA" -ForegroundColor Yellow
-Write-Host "============================================" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "Al reiniciar:" -ForegroundColor White
-Write-Host "1. El sistema iniciará automáticamente" -ForegroundColor White
-Write-Host "2. Chrome se abrirá en modo kiosco" -ForegroundColor White
-Write-Host "3. Conectará al proxy automáticamente" -ForegroundColor White
-Write-Host "4. Mostrará el panel TPV" -ForegroundColor White
 Write-Host ""
 
-$reiniciar = Read-Host "¿Deseas REINICIAR el PC ahora? (S/N)"
+# ===============================================================
+# BLOQUE 6: CONFIGURACIÓN DE TAREA PROGRAMADA
+# ===============================================================
 
-if ($reiniciar -eq "S" -or $reiniciar -eq "s") {
-    Write-Host ""
-    Write-Host "Reiniciando en 10 segundos..." -ForegroundColor Yellow
-    Write-Host "Presiona Ctrl+C para cancelar" -ForegroundColor Yellow
-    Start-Sleep -Seconds 10
+Write-Host "[PASO 5/5] Configurando inicio automático al login..." -ForegroundColor Cyan
+
+try {
+    # Eliminar tarea anterior si existe
+    $taskName = "RacingTPV-Bar${barNumero}"
+    $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     
-    # Auto-eliminar este script
+    if ($existingTask) {
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+        Write-Host "  🗑️  Tarea anterior eliminada" -ForegroundColor Yellow
+    }
+    
+    # Crear nueva tarea programada
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File C:\tpv\IniciarKiosco.ps1"
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+    
+    Write-Host "  ✅ Tarea programada '$taskName' creada" -ForegroundColor Green
+    Write-Host "     El TPV se iniciará automáticamente al encender el PC" -ForegroundColor White
+    
+} catch {
+    Write-Host "  ❌ ERROR al crear tarea programada: $_" -ForegroundColor Red
+    Write-Host "  ⚠️  El TPV NO se iniciará automáticamente" -ForegroundColor Yellow
+}
+
+Write-Host ""
+
+# ===============================================================
+# BLOQUE 7: RESUMEN FINAL
+# ===============================================================
+
+Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "  ✅  INSTALACIÓN COMPLETADA CON ÉXITO" -ForegroundColor Green
+Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "📋 RESUMEN DE CONFIGURACIÓN:" -ForegroundColor Yellow
+Write-Host "  • Bar configurado: $barNumero" -ForegroundColor White
+Write-Host "  • URL TPV: $urlTPV" -ForegroundColor White
+Write-Host "  • Proxy: ${PROXY_IP}:${PROXY_PORT}" -ForegroundColor White
+Write-Host "  • Usuario Proxy: $usuario" -ForegroundColor White
+Write-Host "  • Directorio: C:\tpv\" -ForegroundColor White
+Write-Host "  • Inicio automático: ACTIVADO" -ForegroundColor Green
+Write-Host ""
+Write-Host "🔄 PRÓXIMOS PASOS:" -ForegroundColor Yellow
+Write-Host "  1. Reinicia el ordenador" -ForegroundColor White
+Write-Host "  2. El TPV se abrirá automáticamente al iniciar sesión" -ForegroundColor White
+Write-Host "  3. Selecciona tu usuario (María, Pedro, Laura, Admin)" -ForegroundColor White
+Write-Host "  4. Comienza a registrar ventas" -ForegroundColor White
+Write-Host ""
+Write-Host "⚠️  IMPORTANTE:" -ForegroundColor Red
+Write-Host "  • Asegúrate de que el servidor WordPress esté accesible" -ForegroundColor White
+Write-Host "  • Verifica que el proxy Squid (${PROXY_IP}) esté activo" -ForegroundColor White
+Write-Host "  • El PC debe estar conectado a la red del estadio" -ForegroundColor White
+Write-Host ""
+
+# ===============================================================
+# BLOQUE 8: AUTO-ELIMINACIÓN DEL SCRIPT
+# ===============================================================
+
+Write-Host "🗑️  Este script se auto-eliminará en 5 segundos..." -ForegroundColor DarkGray
+Start-Sleep -Seconds 5
+
+try {
     Remove-Item $PSCommandPath -Force -ErrorAction SilentlyContinue
-    
+} catch {
+    # Ignorar error si no se puede auto-eliminar
+}
+
+Write-Host ""
+Write-Host "Presiona ENTER para reiniciar el PC ahora, o cierra esta ventana para hacerlo más tarde..." -ForegroundColor Yellow
+$respuesta = Read-Host
+
+if ($respuesta -eq "" -or $respuesta -match '^(s|si|y|yes)$') {
+    Write-Host "Reiniciando en 3 segundos..." -ForegroundColor Green
+    Start-Sleep -Seconds 3
     Restart-Computer -Force
-} else {
-    Write-Host ""
-    Write-Host "⚠️  RECUERDA REINICIAR MANUALMENTE" -ForegroundColor Yellow
-    Write-Host ""
-    pause
-    
-    # Auto-eliminar este script
-    Remove-Item $PSCommandPath -Force -ErrorAction SilentlyContinue
 }
