@@ -12,7 +12,7 @@ Parameters:
     NoEcho: true
     Default: Racing2026
     MinLength: 8
-    Description: Contrase?a para RDS MariaDB
+    Description: Contrasena para RDS MariaDB
 
   WordPressMinSize:
     Type: Number
