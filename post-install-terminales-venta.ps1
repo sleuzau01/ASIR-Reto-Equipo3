@@ -1,88 +1,80 @@
-# ===============================================================
-# Script de Post-Instalación para Terminales TPV Racing Santander
-# Versión: 2.1 FIXED
-# Fecha: 10/02/2026
-# ===============================================================
+# ==============================================================================
+# SCRIPT: Instalador TPV Racing
+# DESCRIPCIÓN: Configura Chrome en modo Kiosco con perfil aislado y auto-inicio.
+# ==============================================================================
 
-# 1. AUTO-ELEVACIÓN A ADMINISTRADOR (Obligatorio)
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "⚠️  Elevando permisos..." -ForegroundColor Yellow
+$ErrorActionPreference = "Stop"
+
+# --- FUNCIONES VISUALES ---
+function Write-Header {
+    param([string]$text)
+    Write-Host "`n" + ("=" * 40) -ForegroundColor Cyan
+    Write-Host "  $text" -ForegroundColor Cyan -NoNewline
+    Write-Host " "
+    Write-Host ("=" * 40) -ForegroundColor Cyan
+}
+
+# --- PASO 1: ELEVACIÓN DE PRIVILEGIOS ---
+$currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsPrincipal]::CurrentRoleToCapabilityMapping.Administrator)) {
+    Write-Host "`n[!] Se requieren permisos de administrador. Elevando..." -ForegroundColor Yellow
     Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
 
-# 2. CONFIGURACIÓN CENTRAL (¡REVISA ESTO!)
-$ALB_DNS = "racing-alb-123456789.eu-central-1.elb.amazonaws.com" # <--- PON AQUÍ TU DNS REAL
-$PROXY_IP = "192.168.20.5"
-$PROXY_PORT = "3128"
-
-# Usuarios Squid (Deben coincidir con tu servidor Proxy)
-$credenciales = @{
-    1 = @{ u="bar1"; p="Bar12026" }; 2 = @{ u="bar2"; p="Bar22026" };
-    3 = @{ u="bar3"; p="Bar32026" }; 4 = @{ u="bar4"; p="Bar42026" };
-    5 = @{ u="bar5"; p="Bar52026" }; 6 = @{ u="bar6"; p="Bar62026" };
-    7 = @{ u="bar7"; p="Bar72026" }; 8 = @{ u="bar8"; p="Bar82026" };
-    9 = @{ u="bar9"; p="Bar92026" }; 10 = @{ u="bar10"; p="Bar102026" };
-    11 = @{ u="bar11"; p="Bar112026" }; 12 = @{ u="bar12"; p="Bar122026" };
-    13 = @{ u="bar13"; p="Bar132026" }; 14 = @{ u="bar14"; p="Bar142026" };
-    15 = @{ u="bar15"; p="Bar152026" }; 16 = @{ u="bar16"; p="Bar162026" }
-}
-
-# 3. INSTALACIÓN SILENCIOSA DE CHROME
-$chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-if (-not (Test-Path $chromePath)) {
-    Write-Host "📥 Instalando Google Chrome..." -ForegroundColor Cyan
-    $installer = "$env:TEMP\chrome_install.exe"
-    Invoke-WebRequest "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $installer
-    Start-Process -FilePath $installer -ArgumentList "/silent /install" -Wait
-    Remove-Item $installer -ErrorAction SilentlyContinue
-}
-
-# 4. SELECCIÓN DE BAR
 Clear-Host
-Write-Host "🏟️  CONFIGURACIÓN TPV RACING" -ForegroundColor Green
-do {
-    $barID = Read-Host "👉 Introduce NÚMERO DE BAR (1-16)"
-} until ($barID -match '^\d+$' -and [int]$barID -ge 1 -and [int]$barID -le 16)
+Write-Header "TPV RACING - INSTALADOR"
 
-$user = $credenciales[[int]$barID].u
-$pass = $credenciales[[int]$barID].p
-$finalURL = "http://$ALB_DNS/wordpress/tpv-bar/?bar_id=$barID"
+# --- PASO 2: VERIFICACIÓN DE REQUISITOS ---
+Write-Host "[*] Verificando Google Chrome..." -ForegroundColor Gray
+$chromePath = "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe"
+if (-not (Test-Path $chromePath)) { $chromePath = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe" }
 
-# 5. CREAR ESTRUCTURA
-New-Item -ItemType Directory -Path "C:\tpv\chrome-kiosk-profile" -Force | Out-Null
+if (Test-Path $chromePath) {
+    Write-Host "    - Chrome detectado: OK" -ForegroundColor Green
+} else {
+    Write-Host "    - ERROR: Chrome no instalado." -ForegroundColor Red
+    pause ; exit
+}
 
-# 6. GENERAR LANZADOR KIOSCO
-$launcherScript = @"
-`$chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-`$args = @(
-    "--kiosk",
-    "$finalURL",
-    "--proxy-server=`"http://$PROXY_IP:$PROXY_PORT`"",
-    "--user-data-dir=C:\tpv\chrome-kiosk-profile",
-    "--no-first-run",
-    "--disable-infobars",
-    "--start-maximized"
-)
-# Configurar Proxy en Registro Windows por si acaso
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyEnable -Value 1 -Force
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyServer -Value "$PROXY_IP:$PROXY_PORT" -Force
+# --- PASO 3: ENTRADA DE DATOS ---
+Write-Host "`n[*] CONFIGURACIÓN DEL BAR" -ForegroundColor Yellow
+$barID = ""
+while ($barID -notmatch '^(?:[1-9]|1[0-6])$') {
+    $barID = Read-Host "    - Introduce el ID del Bar (1-16)"
+}
 
-# Matar Chrome viejo y lanzar nuevo
-Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Process -FilePath `$chrome -ArgumentList `$args
-"@
+$ALB_DNS = "localhost"
+$url = "http://$ALB_DNS/wordpress/tpv-bar/?bar_id=$barID"
+$profileDir = "C:\tpv\perfil_chrome"
 
-$launcherScript | Out-File "C:\tpv\IniciarKiosco.ps1" -Encoding UTF8
+# --- PASO 4: PREPARACIÓN DEL SISTEMA ---
+Write-Host "`n[*] CREANDO ENTORNO..." -ForegroundColor Yellow
+if (!(Test-Path $profileDir)) {
+    New-Item -Path $profileDir -ItemType Directory -Force | Out-Null
+    Write-Host "    - Directorio de perfil creado." -ForegroundColor Gray
+}
 
-# 7. TAREA PROGRAMADA (AUTO-INICIO)
-$taskName = "RacingTPV-AutoStart"
-Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -File C:\tpv\IniciarKiosco.ps1"
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -User $env:USERNAME -RunLevel Highest | Out-Null
+# --- PASO 5: PERSISTENCIA (ACCESO DIRECTO) ---
+Write-Host "[*] CONFIGURANDO AUTO-INICIO..." -ForegroundColor Yellow
+try {
+    $startupFolder = [Environment]::GetFolderPath("Startup")
+    $shortcutPath = Join-Path $startupFolder "IniciarTPV.lnk"
+    
+    $wsh = New-Object -ComObject WScript.Shell
+    $shortcut = $wsh.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $chromePath
+    $shortcut.Arguments = "--kiosk --user-data-dir=`"$profileDir`" --no-first-run --no-default-browser-check $url"
+    $shortcut.Save()
+    Write-Host "    - Acceso directo creado en Carpeta de Inicio." -ForegroundColor Green
+} catch {
+    Write-Host "    - Error creando acceso directo." -ForegroundColor Red
+}
 
-Write-Host ""
-Write-Host "✅ INSTALACIÓN COMPLETADA. EL PC SE REINICIARÁ EN 5 SEGUNDOS." -ForegroundColor Green
-Start-Sleep -Seconds 5
-Restart-Computer -Force
+# --- PASO 6: LANZAMIENTO INICIAL ---
+Write-Header "INSTALACIÓN COMPLETADA"
+Write-Host "El TPV se iniciará automáticamente con Windows." -ForegroundColor Gray
+Write-Host "Lanzando vista previa en 3 segundos..." -ForegroundColor Cyan
+Start-Sleep -Seconds 3
+
+Start-Process $chromePath -ArgumentList "--kiosk --user-data-dir=`"$profileDir`" --no-first-run --no-default-browser-check $url"
