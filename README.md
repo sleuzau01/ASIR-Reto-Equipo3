@@ -36,4 +36,4 @@ La base de datos `estadio_racing_bares.sql` está estructurada para optimizar la
 * **Gestión:** MySQL Workbench.
 
 ---
-*Proyecto desarrollado para el módulo de Administración de Sistemas de Gestión de Bases de Datos (ASGBD).*
+*Proyecto desarrollado para el TFG de ASIR2 - ASIR360 - AGL*
